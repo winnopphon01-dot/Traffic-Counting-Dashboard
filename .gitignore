@@ -1,0 +1,13 @@
+# Secret ห้าม commit — คัดลอกมาจาก .env.example เท่านั้น
+.env
+.env.local
+.env.*.local
+/data/
+
+# Dependencies (โปรเจกต์นี้ไม่มี แต่กันไว้หากเพิ่มภายหลัง)
+node_modules/
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db

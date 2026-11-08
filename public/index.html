@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>VISION.IQ — Traffic Counting Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233ddc84'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <section id="loginScreen" class="auth-screen" hidden>
+    <form id="loginForm" class="auth-card">
+      <div class="brand-name">VISION<span class="brand-sep">.</span>IQ</div>
+      <h1>เข้าสู่ระบบ</h1>
+      <p class="muted">ลงชื่อเข้าใช้ Traffic Counting Dashboard</p>
+      <label class="field"><span>ชื่อผู้ใช้</span><input name="username" autocomplete="username" required></label>
+      <label class="field"><span>รหัสผ่าน</span><input name="password" type="password" autocomplete="current-password" required></label>
+      <p id="loginMessage" class="field-error" role="alert" hidden></p>
+      <button class="btn btn-primary" type="submit">เข้าสู่ระบบ</button>
+    </form>
+  </section>
+  <div class="shell" hidden>
+    <nav class="rail" aria-label="เมนูย่อย">
+      <span class="rail-logo" aria-hidden="true">◉</span>
+      <div class="rail-nav">
+        <button type="button" class="rail-btn is-active" data-rail-view="overview" title="ภาพรวม — หน้าต่างหลายใบ" aria-label="ภาพรวม">▦</button>
+        <button type="button" class="rail-btn" data-rail-view="trend" title="แนวโน้ม — กราฟใหญ่" aria-label="แนวโน้ม">◔</button>
+        <button type="button" class="rail-btn" data-rail-view="history" title="ประวัติ — ตาราง" aria-label="ประวัติ">☰</button>
+        <button type="button" class="rail-btn" data-rail-view="analysis" title="วิเคราะห์ Playlist" aria-label="วิเคราะห์ Playlist">▤</button>
+      </div>
+      <button type="button" class="rail-btn rail-end" data-rail-action="filters" title="เปิดตัวกรอง" aria-label="เปิดตัวกรอง" aria-pressed="false">⌗</button>
+    </nav>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-name">VISION<span class="brand-sep">.</span>IQ</span>
+          <span class="chip chip-live"><span class="chip-dot" aria-hidden="true"></span>TRAFFIC TELEMETRY</span>
+        </div>
+        <div class="topbar-actions">
+          <span id="currentUsername" class="muted"></span>
+          <button id="userManageBtn" class="btn btn-ghost" type="button" hidden>จัดการผู้ใช้</button>
+          <button id="logoutBtn" class="btn btn-ghost" type="button">ออกจากระบบ</button>
+          <span id="lastUpdated" class="last-updated">ยังไม่เคยอัปเดต</span>
+          <button id="filtersToggleBtn" class="btn btn-ghost" type="button" data-view="overview history" title="เปิด/ซ่อนตัวกรอง" aria-controls="filtersSection" aria-expanded="false">⌕ ตัวกรอง</button>
+          <div class="topbar-monitor-actions" data-view="overview trend" aria-label="ควบคุมกราฟมอนิเตอร์">
+            <label class="topbar-layout" data-view="overview">
+              <span>เค้าโครง</span>
+              <select id="layoutCols" aria-label="จำนวนคอลัมน์ของกราฟ">
+                <option value="1">1 คอลัมน์</option>
+                <option value="2" selected>2 คอลัมน์</option>
+                <option value="3">3 คอลัมน์</option>
+              </select>
+            </label>
+            <label class="topbar-layout" data-view="trend">
+              <span>เค้าโครง</span>
+              <select id="trendLayoutCols" aria-label="จำนวนคอลัมน์กราฟประวัติ">
+                <option value="1">1 คอลัมน์</option>
+                <option value="2" selected>2 คอลัมน์</option>
+                <option value="3">3 คอลัมน์</option>
+              </select>
+            </label>
+            <button id="addMonitorWindow" class="btn btn-primary" type="button" data-view="overview">＋ เพิ่มกราฟ</button>
+          </div>
+          <div class="topbar-trend-controls" data-view="trend" aria-label="ควบคุม Trend Monitor">
+            <span class="trend-live-pill"><i></i> LIVE MONITOR</span>
+            <button id="chartFullscreenBtn" class="btn btn-primary btn-sm chart-fullscreen-toggle" type="button" aria-label="ขยายกราฟเต็มจอ" aria-pressed="false">⛶ เต็มจอ</button>
+          </div>
+          <label class="auto-toggle" title="เปิดหรือปิดการอัปเดตอัตโนมัติ">
+            <input type="checkbox" id="autoRefreshToggle" aria-label="เปิดหรือปิดการอัปเดตอัตโนมัติ" checked>
+            <span>อัตโนมัติ</span>
+          </label>
+          <label class="refresh-interval" title="ช่วงเวลารีเฟรชอัตโนมัติ">
+            <span>ทุก</span>
+            <select id="refreshInterval" aria-label="ช่วงเวลารีเฟรชอัตโนมัติ">
+              <option value="10">10 วิ</option>
+              <option value="30" selected>30 วิ</option>
+              <option value="60">1 นาที</option>
+              <option value="300">5 นาที</option>
+              <option value="600">10 นาที</option>
+            </select>
+          </label>
+          <button id="refreshBtn" class="btn btn-primary" type="button">↻ รีเฟรช</button>
+        </div>
+      </header>
+
+      <div class="banner-stack">
+        <div id="noKeyBanner" class="banner banner-warn" hidden>
+          <strong>ยังไม่ได้ตั้งค่า API Key</strong>
+          <span>เพิ่ม <code>UPSTREAM_API_KEY</code> ในไฟล์ <code>.env</code> แล้วรีสตาร์ทเซิร์ฟเวอร์ เพื่อโหลดข้อมูลจริงจาก /api/traffic/*</span>
+        </div>
+      </div>
+
+      <main class="container">
+        <section class="card span-3" id="filtersSection" data-view="history" aria-labelledby="filterTitle" hidden>
+          <div class="section-head">
+            <h2 id="filterTitle">ตัวกรอง</h2>
+            <span class="micro">เวลา (เครื่องของคุณ) · จำนวนรายการ สูงสุด 1000</span>
+          </div>
+          <div class="filters-grid">
+            <label class="field">
+              <span>จาก (วัน-เวลา)</span>
+              <input type="datetime-local" id="startFilter">
+            </label>
+            <label class="field">
+              <span>ถึง (วัน-เวลา)</span>
+              <input type="datetime-local" id="endFilter">
+            </label>
+            <label class="field">
+              <span>จำนวนรายการ</span>
+              <select id="limitFilter">
+                <option value="100">100</option>
+                <option value="300" selected>300</option>
+                <option value="1000">1000</option>
+              </select>
+            </label>
+            <div class="filter-actions">
+              <button id="applyFilterBtn" class="btn btn-primary" type="button">ใช้ตัวกรอง</button>
+              <button id="clearFilterBtn" class="btn btn-ghost" type="button">ล้าง</button>
+            </div>
+          </div>
+          <p id="filterError" class="field-error" hidden></p>
+          <p id="cameraError" class="field-error" hidden></p>
+        </section>
+
+        <section class="cards span-3" id="summaryCards" data-view="trend history" data-overview-hidden="true" aria-label="สรุปยอดรวม">
+          <article class="card win stat-card" id="cardVehicle">
+            <div class="win-head">
+              <span class="win-code">SUM-01</span>
+              <h3 class="win-title">Car</h3>
+              <span class="stat-delta" id="vehicleDelta" title="เทียบกับรอบรีเฟรชก่อนหน้า">—</span>
+            </div>
+            <div class="stat-body">
+              <span class="stat-icon icon-vehicle" aria-hidden="true">🚗</span>
+              <p class="stat-value" id="vehicleValue">—</p>
+            </div>
+            <p class="stat-sub" id="vehicleSub">กำลังโหลด…</p>
+          </article>
+          <article class="card win stat-card" id="cardNonVehicle">
+            <div class="win-head">
+              <span class="win-code">SUM-02</span>
+              <h3 class="win-title">Motorcycle</h3>
+              <span class="stat-delta" id="nonVehicleDelta" title="เทียบกับรอบรีเฟรชก่อนหน้า">—</span>
+            </div>
+            <div class="stat-body">
+              <span class="stat-icon icon-non" aria-hidden="true">🛵</span>
+              <p class="stat-value" id="nonVehicleValue">—</p>
+            </div>
+            <p class="stat-sub" id="nonVehicleSub">กำลังโหลด…</p>
+          </article>
+          <article class="card win stat-card" id="cardPerson">
+            <div class="win-head">
+              <span class="win-code">SUM-03</span>
+              <h3 class="win-title">People</h3>
+              <span class="stat-delta" id="personDelta" title="เทียบกับรอบรีเฟรชก่อนหน้า">—</span>
+            </div>
+            <div class="stat-body">
+              <span class="stat-icon icon-person" aria-hidden="true">🚶</span>
+              <p class="stat-value" id="personValue">—</p>
+            </div>
+            <p class="stat-sub" id="personSub">กำลังโหลด…</p>
+          </article>
+        </section>
+
+        <section class="monitor-grid span-3" id="cameraWindows" data-view="overview" aria-label="กราฟแยกตามกล้อง"></section>
+
+        <section class="card span-3" id="monitorTableSection" data-view="history" data-overview-hidden="true" aria-labelledby="monitorTableTitle">
+          <div class="section-head">
+            <div class="win-title-row">
+              <span class="win-code">MON-01</span>
+              <h2 id="monitorTableTitle">เหตุการณ์ล่าสุด (มอนิเตอร์)</h2>
+              <span class="win-chip" id="monitorTableChip">—</span>
+            </div>
+          </div>
+          <div id="monitorTableState" class="state-block" hidden>
+            <div class="state-spinner" aria-hidden="true"></div>
+            <p class="state-msg">กำลังโหลด…</p>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="retry" hidden>ลองใหม่</button>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">เวลาเหตุการณ์</th>
+                  <th scope="col">กล้อง</th>
+                  <th scope="col" class="num">Car in</th>
+                  <th scope="col" class="num">Car out</th>
+                  <th scope="col" class="num">Motorcycle in</th>
+                  <th scope="col" class="num">Motorcycle out</th>
+                  <th scope="col" class="num">People in</th>
+                  <th scope="col" class="num">People out</th>
+                  <th scope="col" class="num">Total car</th>
+                  <th scope="col" class="num">Total motorcycle</th>
+                  <th scope="col" class="num">Total people</th>
+                  <th scope="col">ชื่อกล้อง</th>
+                  <th scope="col">เวลารับข้อมูล</th>
+                </tr>
+              </thead>
+              <tbody id="monitorTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+
+        <section class="trend-panel" id="chartSection" data-view="trend" aria-labelledby="chartTitle">
+          <section class="monitor-grid trend-camera-grid" id="trendCameraWindows" aria-label="กราฟประวัติแยกตามกล้อง"></section>
+          <div class="trend-search-status" id="trendSearchStatus" role="status" aria-live="polite"></div>
+          <div hidden>
+            <span id="chartInfo">—</span>
+            <select id="chartRange"><option value="all" selected>ทั้งหมด</option></select>
+            <div id="chartNotice"></div>
+            <div id="chartState" class="state-block" hidden><p class="state-msg"></p></div>
+            <div id="chartWrap" class="chart-wrap"><div id="chartTooltip" class="chart-tooltip" hidden></div></div>
+          </div>
+        </section>
+
+        <section class="trend-results" id="trendResults" data-view="trend" hidden aria-labelledby="trendResultsTitle">
+          <div class="trend-results-head">
+            <h2 id="trendResultsTitle">ผลการค้นหา</h2>
+            <div class="trend-results-actions">
+              <label class="trend-row-limit">
+                <span>แสดง</span>
+                <select id="trendRowsLimit" aria-label="จำนวนแถวในตารางผลการค้นหา">
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                  <option value="1000">1000</option>
+                </select>
+                <span>แถว</span>
+              </label>
+              <span id="trendTableCount" class="muted"></span>
+              <div class="trend-pagination" aria-label="เปลี่ยนหน้าตารางผลการค้นหา">
+                <button id="trendPrevPage" class="btn btn-ghost btn-sm" type="button" aria-label="หน้าก่อนหน้า">‹ ก่อนหน้า</button>
+                <span id="trendPageInfo" class="muted" aria-live="polite"></span>
+                <button id="trendNextPage" class="btn btn-ghost btn-sm" type="button" aria-label="หน้าถัดไป">หน้าถัดไป ›</button>
+              </div>
+              <button id="trendExportBtn" class="btn btn-ghost btn-sm" type="button">⇩ Export Excel (CSV)</button>
+            </div>
+          </div>
+          <div id="trendTableState" class="state-block" hidden>
+            <p class="state-msg"></p>
+          </div>
+          <div class="table-scroll" id="trendTableScroll">
+            <table id="trendResultsTable">
+              <thead>
+                <tr>
+                  <th scope="col">เวลาเหตุการณ์</th>
+                  <th scope="col">กล้อง</th>
+                  <th scope="col" class="num">Car in</th>
+                  <th scope="col" class="num">Car out</th>
+                  <th scope="col" class="num">Motorcycle in</th>
+                  <th scope="col" class="num">Motorcycle out</th>
+                  <th scope="col" class="num">People in</th>
+                  <th scope="col" class="num">People out</th>
+                  <th scope="col" class="num">Total car</th>
+                  <th scope="col" class="num">Total motorcycle</th>
+                  <th scope="col" class="num">Total people</th>
+                  <th scope="col">ชื่อกล้อง</th>
+                  <th scope="col">เวลารับข้อมูล</th>
+                </tr>
+              </thead>
+              <tbody id="trendResultsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card span-3" id="tableSection" data-view="history" hidden aria-labelledby="tableTitle">
+          <div class="section-head">
+            <div class="win-title-row">
+              <span class="win-code">HIST</span>
+              <h2 id="tableTitle">ตารางประวัติ</h2>
+            </div>
+            <span id="tableCount" class="muted"></span>
+          </div>
+          <div id="tableState" class="state-block" hidden>
+            <div class="state-spinner" aria-hidden="true"></div>
+            <p class="state-msg">กำลังโหลด…</p>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="retry" hidden>ลองใหม่</button>
+          </div>
+          <div id="tableScroll" class="table-scroll" hidden>
+            <table id="historyTable">
+              <thead>
+                <tr>
+                  <th>เวลาเหตุการณ์</th>
+                  <th>กล้อง</th>
+                  <th class="num">Car in</th>
+                  <th class="num">Car out</th>
+                  <th class="num">Motorcycle in</th>
+                  <th class="num">Motorcycle out</th>
+                  <th class="num">People in</th>
+                  <th class="num">People out</th>
+                  <th class="num">Total car</th>
+                  <th class="num">Total motorcycle</th>
+                  <th class="num">Total people</th>
+                  <th>ชื่อกล้อง</th>
+                  <th>เวลารับข้อมูล</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card span-3 playlist-analysis" id="analysisSection" data-view="analysis" hidden aria-labelledby="analysisTitle">
+          <div class="section-head">
+            <div>
+              <span class="micro">PLAYLIST × TRAFFIC</span>
+              <h2 id="analysisTitle">วิเคราะห์ยอดผู้สัญจรตามสื่อ</h2>
+            </div>
+            <span class="micro">เวลาในรายงานใช้เวลาไทย (Asia/Bangkok)</span>
+          </div>
+          <div class="analysis-import">
+            <label class="field analysis-file-field">
+              <span>เลือกไฟล์ Playlist Report (.txt)</span>
+              <input id="analysisFile" type="file" accept=".txt,text/plain">
+            </label>
+            <label class="field analysis-camera-field">
+              <span>กล้องที่ใช้วิเคราะห์</span>
+              <select id="analysisCamera" aria-label="เลือกกล้องสำหรับวิเคราะห์ Playlist">
+                <option value="">กำลังโหลดรายชื่อกล้อง…</option>
+              </select>
+            </label>
+            <button id="analysisRunBtn" class="btn btn-primary" type="button" disabled>⌕ คำนวณยอด</button>
+          </div>
+          <p class="analysis-hint">ระบบใช้ค่าจำนวนสะสมจากกล้องที่เลือก แล้วคำนวณจากค่าอ่านล่าสุดก่อนเวลาเริ่มสื่อถึงค่าอ่านแรกตั้งแต่เวลาสิ้นสุดสื่อ เช่น 73 − 57 = 16 คน</p>
+          <div id="analysisStatus" class="analysis-status" role="status" aria-live="polite">เลือกไฟล์รายงานเพื่อเริ่มวิเคราะห์</div>
+          <div id="analysisTableState" class="state-block" hidden><p class="state-msg"></p></div>
+          <div class="analysis-table-toolbar" id="analysisTableToolbar" hidden>
+            <label class="analysis-row-limit">
+              <span>แสดง</span>
+              <select id="analysisRowsLimit" aria-label="จำนวนรายการต่อหน้า">
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+              </select>
+              <span>รายการ</span>
+            </label>
+            <span id="analysisTableCount" class="muted"></span>
+            <div class="analysis-pagination" aria-label="เปลี่ยนหน้าผลวิเคราะห์">
+              <button id="analysisPrevPage" class="btn btn-ghost btn-sm" type="button">‹ ก่อนหน้า</button>
+              <span id="analysisPageInfo" class="muted" aria-live="polite"></span>
+              <button id="analysisNextPage" class="btn btn-ghost btn-sm" type="button">หน้าถัดไป ›</button>
+            </div>
+          </div>
+          <div class="table-scroll" id="analysisTableScroll" hidden>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">เวลาเริ่ม (ไทย)</th>
+                  <th scope="col">เวลาสิ้นสุด (ไทย)</th>
+                  <th scope="col">สื่อ</th>
+                  <th scope="col" class="num">Car</th>
+                  <th scope="col" class="num">Motorcycle</th>
+                  <th scope="col" class="num">People</th>
+                  <th scope="col">กล้อง</th>
+                </tr>
+                <tr class="analysis-filter-row">
+                  <th><input id="analysisStartFilter" type="datetime-local" aria-label="กรองเวลาสตาร์ตสื่อตั้งแต่" title="กรองเวลาเริ่มตั้งแต่"></th>
+                  <th><input id="analysisEndFilter" type="datetime-local" aria-label="กรองเวลาจบสื่อไม่เกิน" title="กรองเวลาสิ้นสุดไม่เกิน"></th>
+                  <th><input id="analysisMediaFilter" type="search" placeholder="ค้นหาสื่อ…" aria-label="กรองชื่อสื่อ"></th>
+                  <th colspan="4"></th>
+                </tr>
+              </thead>
+              <tbody id="analysisResultsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="statusbar" id="apiFooter">
+        <span id="connStatus" class="status-pill is-checking"><span class="dot" aria-hidden="true"></span><span id="connText">กำลังตรวจสอบ…</span></span>
+        <span class="sb-item"><span class="micro">LATENCY</span><strong id="tbLatency">—</strong></span>
+        <span class="sb-item"><span class="micro">ROWS</span><strong id="tbRows">—</strong></span>
+        <span class="sb-item"><span class="micro">NEW / ROUND</span><strong id="tbNewRows">—</strong></span>
+        <span class="sb-item">API <code id="apiUpstream">—</code></span>
+        <span class="sb-item sb-links">
+          สเปกจริง: <a id="apiDocsLink" href="#" target="_blank" rel="noopener">/docs</a>
+          ·
+          <a id="apiSpecLink" href="#" target="_blank" rel="noopener">/openapi.json</a>
+        </span>
+        <span class="sb-item"><span class="micro">LAST PUSH</span> <strong id="sbUpdated">—</strong></span>
+        <span class="sb-item"><span class="micro">LOCAL</span> <strong id="sbClock">—</strong></span>
+        <span class="sb-item sb-secure">🔒 API KEY อยู่ฝั่งเซิร์ฟเวอร์</span>
+      </footer>
+    </div>
+  </div>
+  <section id="userManagePanel" class="auth-overlay" hidden aria-labelledby="userManageTitle">
+    <div class="auth-card user-manager">
+      <div class="user-manager-head">
+        <div><h2 id="userManageTitle">จัดการผู้ใช้</h2><p class="muted">กำหนดสิทธิ์หน้า กล้อง วันหมดอายุ และจำนวนกราฟ</p></div>
+        <button id="closeUserManageBtn" class="btn btn-ghost" type="button">ปิด</button>
+      </div>
+      <div class="user-manager-grid">
+        <form id="userForm" class="user-form">
+          <input type="hidden" name="id">
+          <label class="field"><span>ชื่อผู้ใช้</span><input name="username" minlength="3" maxlength="64" required></label>
+          <label class="field"><span>รหัสผ่าน <small>(แก้ไขเว้นว่างได้)</small></span><input name="password" type="password" minlength="10" autocomplete="new-password"></label>
+          <label class="field"><span>สิทธิ์บัญชี</span><select name="role"><option value="user">ผู้ใช้</option><option value="admin">Admin</option></select></label>
+          <label class="field"><span>วันหมดอายุ <small>(เว้นว่าง = ไม่หมดอายุ)</small></span><input name="expiresAt" type="datetime-local"></label>
+          <label class="field"><span>จำนวนกราฟต่อหน้า (Overview/Trend)</span><input name="maxGraphs" type="number" min="1" max="20" value="1" required></label>
+          <fieldset class="permission-options"><legend>หน้าที่อนุญาต</legend>
+            <label><input type="checkbox" name="pages" value="overview"> ภาพรวม</label>
+            <label><input type="checkbox" name="pages" value="trend"> แนวโน้ม</label>
+            <label><input type="checkbox" name="pages" value="history"> ประวัติ</label>
+            <label><input type="checkbox" name="pages" value="analysis"> วิเคราะห์ Playlist</label>
+          </fieldset>
+          <label class="field"><span>กล้องที่อนุญาต (เลือกได้หลายกล้อง)</span><select name="cameras" id="userCameraSelect" multiple size="5"></select></label>
+          <p id="userFormMessage" class="field-error" role="alert" hidden></p>
+          <div class="user-form-actions"><button class="btn btn-primary" type="submit">บันทึกผู้ใช้</button><button id="cancelUserEditBtn" class="btn btn-ghost" type="button">ล้างฟอร์ม</button></div>
+        </form>
+        <div class="user-list-wrap"><table class="user-list"><thead><tr><th>ชื่อผู้ใช้</th><th>สิทธิ์</th><th>หมดอายุ</th><th>จัดการ</th></tr></thead><tbody id="userListBody"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

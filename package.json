@@ -1,0 +1,16 @@
+{
+  "name": "traffic-counting-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard สำหรับ Traffic Counting API (FastAPI บน VPS) พร้อม Server-side API Proxy — ไม่มี dependencies",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node --check server.js && node --check lib/config.js && node --check lib/auth.js && node --check lib/testFlag.js && node --check lib/demoData.js && node --check lib/upstream.js && node --check public/js/auth.js && node --check public/js/app.js && node --check public/js/apiClient.js"
+  },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,18 @@
+services:
+  backend:
+    image: traffic-backend:0.1.0
+    container_name: traffic-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    networks:
+      - traffic_net
+      - node-red_default
+
+networks:
+  traffic_net:
+    external: true
+  node-red_default:
+    external: true

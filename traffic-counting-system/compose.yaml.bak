@@ -1,0 +1,13 @@
+services:
+  backend:
+    image: traffic-backend:0.1.0
+    container_name: traffic-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - traffic_net
+
+networks:
+  traffic_net:
+    external: true

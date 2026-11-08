@@ -1,0 +1,45 @@
+const { spawn, execSync } = require('child_process');
+const http = require('http');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+const EDGE = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find((p)=>fs.existsSync(p));
+if(!EDGE){console.log('NO EDGE');process.exit(1)}
+const PORT = 9361;
+const PROFILE = path.join(os.tmpdir(),'td_prof_ver');
+const URL = process.argv[2] || 'http://localhost:3000/#/trend';
+const W = +(process.argv[3] || 1440), H = +(process.argv[4] || 950);
+const child = spawn(EDGE,['--headless=new','--disable-gpu','--remote-debugging-port='+PORT,'--user-data-dir='+PROFILE,'--no-first-run','--no-default-browser-check','--window-size='+W+','+H,'about:blank'],{detached:true,stdio:'ignore'});
+child.unref();
+const kill=()=>{try{execSync('taskkill /PID '+child.pid+' /T /F',{stdio:'ignore'})}catch{}};
+function getWsUrl(){return new Promise((resolve,reject)=>{let t=0;const tick=()=>{const req=http.get({host:'127.0.0.1',port:PORT,path:'/json/version'},(res)=>{let d='';res.on('data',(c)=>{d+=c});res.on('end',()=>{try{resolve(JSON.parse(d).webSocketDebuggerUrl)}catch(e){reject(e)}})});req.on('error',()=>{if(++t>60)reject(new Error('no devtools'));else setTimeout(tick,250)})};tick()})}
+(async()=>{
+  const wsUrl=await getWsUrl(); const out=[]; const errs=[];
+  const ws=new WebSocket(wsUrl);
+  await new Promise((res,rej)=>{ws.addEventListener('open',res);ws.addEventListener('error',()=>rej(new Error('ws')))});
+  let id=0; const waiters=new Map(); let sessionId=null;
+  ws.addEventListener('message',(ev)=>{const m=JSON.parse(ev.data); if(m.id&&waiters.has(m.id)){waiters.get(m.id)(m);waiters.delete(m.id)} else if(m.method){ if(m.method==='Log.entryAdded'&&m.params.entry.level==='error')errs.push(m.params.entry.text); if(m.method==='Runtime.exceptionThrown')errs.push(m.params.exceptionDetails&&m.params.exceptionDetails.text) }});
+  const send=(method,params={})=>new Promise((res)=>{const i=++id; const msg={id:i,method,params}; if(sessionId)msg.sessionId=sessionId; waiters.set(i,res); ws.send(JSON.stringify(msg))});
+  const evalJS=async(expr)=>{const r=await send('Runtime.evaluate',{expression:expr,returnByValue:true,awaitPromise:true}); return r.result&&r.result.result?r.result.result.value:null};
+  await send('Target.setDiscoverTargets',{discover:true});
+  await send('Target.createTarget',{url:'about:blank'});
+  await new Promise((r)=>setTimeout(r,1000));
+  const targets=await send('Target.getTargets');
+  const page=targets.result.targetInfos.find((t)=>t.type==='page');
+  const att=await send('Target.attachToTarget',{targetId:page.targetId,flatten:true});
+  sessionId=att.result.sessionId;
+  await new Promise((r)=>setTimeout(r,500));
+  await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
+  await send('Page.navigate',{url:URL});
+  await new Promise((r)=>setTimeout(r,10000));
+  const dump=await evalJS(`JSON.stringify({hash:location.hash,ready:document.readyState,chartHidden:(function(){var c=document.getElementById('chartSection');return c?c.hidden:'missing'})(),wrapW:(function(){var w=document.getElementById('chartWrap');return w?Math.round(w.clientWidth):null})(),svgVB:(function(){var s=document.querySelector('#chartWrap svg');return s?s.getAttribute('viewBox'):null})(),svgW:(function(){var s=document.querySelector('#chartWrap svg');return s?Math.round(s.getBoundingClientRect().width):null})(),paths:(function(){var s=document.querySelector('#chartWrap svg');return s?Array.from(s.querySelectorAll('path[fill=none]')).map(function(p){var r=p.getBBox();return [Math.round(r.x),Math.round(r.width)]}):[]})(),info:(document.getElementById('chartInfo')||{}).textContent||'',notice:(document.getElementById('chartNotice')||{}).textContent||'',hasRange:!!document.getElementById('chartRange'),toggles:document.querySelectorAll('[data-series-key]').length,layoutSel:!!document.getElementById('layoutCols'),winCount:document.querySelectorAll('.cam-win').length,tableTr:document.querySelectorAll('#historyBody tr').length,docW:document.documentElement.scrollWidth,vw:window.innerWidth})`);
+  const mon=await evalJS(`JSON.stringify((function(){var g=document.getElementById('cameraWindows');var cs=g?getComputedStyle(g):null;var w=[];if(g){g.querySelectorAll(:scope > *).forEach(function(x){var s=x.querySelector('svg');var wrap=x.querySelector('.cam-chart-wrap');var on=[];x.querySelectorAll('['data-series-key'].is-on').forEach(function(b){on.push(b.getAttribute('data-series-key'))});var sel=x.querySelector(select);w.push({sel:!!sel,selVal:sel?sel.value:null,on:on.join(,),'svg'W:s?Math.round(s.getBoundingClientRect().width):null,wrapW:wrap?Math.round(wrap.clientWidth):null,test:!!x.querySelector('.badge-test')})})}return {cols:cs?cs.gridTemplateColumns:null,n:w.length,w:w}})())`);
+  out.push(JSON.stringify(dump,null,1));
+  out.push('MON '+mon);
+  const shot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+  if(shot.result&&shot.result.data) fs.writeFileSync(path.join(os.tmpdir(),'ver_'+W+'.png'),Buffer.from(shot.result.data,'base64'));
+  out.push('PNG '+path.join(os.tmpdir(),'ver_'+W+'.png'));
+  out.push('ERRORS: '+(errs.length?errs.join(' | '):'none'));
+  console.log(out.join('\n'));
+  ws.close(); kill(); process.exit(0);
+})().catch((e)=>{console.log('FAIL: '+e.message); kill(); process.exit(1)});
